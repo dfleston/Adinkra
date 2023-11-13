@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Card Game</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        #game-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+
+        .card {
+            width: 120px;
+            height: 180px;
+            perspective: 1000px;
+            cursor: pointer;
+            margin: 5px;
+            transform-style: preserve-3d;
+            transition: transform 0.5s, background-color 0.5s;
+        }
+
+        .card:hover {
+            background-color: #e1e1e1;
+        }
+
+        .card .face {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card .face .front,
+        .card .face .back {
+            width: 100%;
+            height: 100%;
+            background-color: white;
+            backface-visibility: hidden;
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card .face .front {
+            transform: rotateY(0deg);
+        }
+
+        .card .face .back {
+            transform: rotateY(180deg);
+        }
+
+        .card .face .front-content,
+        .card .face .back-content {
+            font-size: 20px;
+            color: black;
+        }
+
+        .card .face .image {
+            width: 80%;
+            height: 80%;
+            position: absolute;
+            display: none;
+        }
+
+        .card .face .image img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .flipped .face .image {
+            display: block;
+        }
+
+        .flipped:not(.flipping) .face .front-content {
+            display: none;
+        }
+
+        .matched .face {
+            background-color: orange;
+        }
+
+        .popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+
+        .popup-content {
+            text-align: center;
+        }
+
+        .popup button {
+            margin-top: 10px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<form id="config-form">
+    <label for="num-cards">Number of Pairs:</label>
+    <input type="number" id="num-cards" name="num-cards" min="1" required>
+    <button type="button" onclick="createMemoryGame()">Start Game</button>
+</form>
+
+<div id="game-container"></div>
+
+<div class="popup" id="wellDonePopup">
+    <div class="popup-content" id="popupContent">
+        <p id="popupName"></p>
+        <p id="popupMeaning"></p>
+        <button onclick="continueGame()">Continue</button>
+        <button onclick="restartGame()">Restart</button>
+    </div>
+</div>
+
+<!-- Bootstrap JS and Popper.js (for Bootstrap) -->
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<script>
+    let cards = [];
+    let flippedCards = [];
+    let wellDonePopup = document.getElementById('wellDonePopup');
+    let popupContent = document.getElementById('popupContent');
+    let popupName = document.getElementById('popupName');
+    let popupMeaning = document.getElementById('popupMeaning');
+
+    function createMemoryGame() {
+        const numPairsInput = document.getElementById('num-cards');
+        const numPairs = parseInt(numPairsInput.value, 10);
+
+        if (numPairs >= 1) {
+            const gameContainer = document.getElementById('game-container');
+            gameContainer.innerHTML = '';
+            wellDonePopup.style.display = 'none';
+
+            cards = [];
+            flippedCards = [];
+
+            for (let index = 1; index <= numPairs; index++) {
+                cards.push(index);
+                cards.push(index);
+            }
+
+            shuffleArray(cards);
+
+            for (let index = 0; index < cards.length; index++) {
+                const card = document.createElement('div');
+                card.classList.add('card');
+                card.setAttribute('data-index', index);
+
+                const frontFace = document.createElement('div');
+                frontFace.classList.add('face');
+
+                const imageContainer = document.createElement('div');
+                imageContainer.classList.add('image');
+
+                const img = document.createElement('img');
+                img.src = `${cards[index]}.svg`;
+                img.alt = `Card Image ${cards[index]}`;
+
+                const cardIndex = document.createElement('div');
+                cardIndex.classList.add('front-content');
+                cardIndex.textContent = `${cards[index]}`;
+
+                imageContainer.appendChild(img);
+                frontFace.appendChild(imageContainer);
+                frontFace.appendChild(cardIndex);
+
+                card.appendChild(frontFace);
+                card.addEventListener('click', flipCard);
+                gameContainer.appendChild(card);
+            }
+        } else {
+            alert('Please enter a valid number of pairs (minimum 1).');
+        }
+    }
+
+    function flipCard() {
+        const clickedCard = this;
+
+        if (!clickedCard.classList.contains('flipped') && !clickedCard.classList.contains('flipping')) {
+            clickedCard.classList.add('flipping');
+            clickedCard.classList.toggle('flipped');
+            setTimeout(() => {
+                clickedCard.classList.remove('flipping');
+                flippedCards.push(clickedCard);
+                if (flippedCards.length === 2) {
+                    checkMatch();
+                }
+            }, 500);
+        }
+    }
+
+    function checkMatch() {
+        const firstIndex = parseInt(flippedCards[0].getAttribute('data-index'), 10);
+        const secondIndex = parseInt(flippedCards[1].getAttribute('data-index'), 10);
+
+        if (cards[firstIndex] === cards[secondIndex] && firstIndex !== secondIndex) {
+            setTimeout(() => {
+                flippedCards.forEach(card => card.classList.add('matched'));
+                showWellDonePopup();
+                resetCards();
+            }, 500);
+        } else {
+            setTimeout(() => {
+                flippedCards.forEach(card => card.classList.remove('flipped'));
+                resetCards();
+            }, 500);
+        }
+    }
+
+    function resetCards() {
+        flippedCards = [];
+
+        const matchedCards = document.querySelectorAll('.card.matched');
+        if (matchedCards.length === cards.length) {
+            showWellDonePopup();
+        }
+    }
+
+    function showWellDonePopup() {
+        const firstIndex = parseInt(flippedCards[0].getAttribute('data-index'), 10);
+        const secondIndex = parseInt(flippedCards[1].getAttribute('data-index'), 10);
+
+        const csvData = `index,name,meaning\n${firstIndex},${getAdinkraName(firstIndex)},${getAdinkraMeaning(firstIndex)}\n${secondIndex},${getAdinkraName(secondIndex)},${getAdinkraMeaning(secondIndex)}`;
+        const parsedData = parseCSV(csvData);
+
+        popupName.textContent = parsedData[1].name;
+        popupMeaning.textContent = parsedData[1].meaning;
+
+        wellDonePopup.style.display = 'block';
+    }
+
+    function continueGame() {
+        wellDonePopup.style.display = 'none';
+    }
+
+    function restartGame() {
+        wellDonePopup.style.display = 'none';
+        createMemoryGame();
+    }
+
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
+    function parseCSV(csvData) {
+        const lines = csvData.split('\n');
+        const result = [];
+        const headers = lines[0].split(',');
+
+        for (let i = 1; i < lines.length; i++) {
+            const obj = {};
+            const currentline = lines[i].split(',');
+
+            for (let j = 0; j < headers.length; j++) {
+                obj[headers[j]] = currentline[j];
+            }
+
+            result.push(obj);
+        }
+
+        return result;
+    }
+
+    function getAdinkraName(index) {
+        // Replace this with your logic to get the adinkra name based on the index from the CSV data
+        const csvData = `index,Name,Meaning\n1,AdinkraName1,AdinkraMeaning1\n2,AdinkraName2,AdinkraMeaning2\n3,AdinkraName3,AdinkraMeaning3\n`;
+        const parsedData = parseCSV(csvData);
+        const adinkra = parsedData.find(item => item.index === `${index}`);
+        return adinkra ? adinkra.Name : `NameNotFound${index}`;
+    }
+
+    function getAdinkraMeaning(index) {
+        // Replace this with your logic to get the adinkra meaning based on the index from the CSV data
+        const csvData = `index,Name,Meaning\n1,AdinkraName1,AdinkraMeaning1\n2,AdinkraName2,AdinkraMeaning2\n3,AdinkraName3,AdinkraMeaning3\n`;
+        const parsedData = parseCSV(csvData);
+        const adinkra = parsedData.find(item => item.index === `${index}`);
+        return adinkra ? adinkra.Meaning : `MeaningNotFound${index}`;
+    }
+
+    function parseCSV(csvData) {
+        const lines = csvData.split('\n');
+        const result = [];
+        const headers = lines[0].split(',');
+
+        for (let i = 1; i < lines.length; i++) {
+            const obj = {};
+            const currentline = lines[i].split(',');
+
+            for (let j = 0; j < headers.length; j++) {
+                obj[headers[j]] = currentline[j];
+            }
+
+            result.push(obj);
+        }
+
+        return result;
+    }
+</script>
+
+</body>
+</html>
