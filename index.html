@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Card Game</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .card {
+            width: 200px;
+            height: 300px;
+            position: relative;
+            perspective: 1000px;
+            cursor: pointer;
+            margin: 20px;
+        }
+
+        .card-inner {
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            transition: transform 0.5s;
+            position: absolute;
+        }
+
+        .card-front,
+        .card-back {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .card img {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .card-back {
+            transform: rotateY(180deg);
+        }
+
+        .matched {
+            background-color: orange;
+            pointer-events: none; /* Prevent further clicks on matched cards */
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <form id="config-form">
+            <label for="num-pairs">Number of Pairs:</label>
+            <input type="number" id="num-pairs" name="num-pairs" min="1" required>
+            <button type="button" onclick="startGame()">Start Game</button>
+        </form>
+
+        <div class="row" id="game-container">
+            <!-- Cards will be dynamically added here -->
+        </div>
+    </div>
+
+    <!-- Bootstrap JS and Popper.js (for Bootstrap) -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <script>
+        let selectedCards = [];
+
+        function startGame() {
+            const numPairsInput = document.getElementById('num-pairs');
+            const numPairs = parseInt(numPairsInput.value, 10);
+
+            if (numPairs >= 1) {
+                createMemoryGame(numPairs);
+            } else {
+                alert('Please enter a valid number of pairs (minimum 1).');
+            }
+        }
+
+        function getRandomCardNumber() {
+            // Assuming you have 5 images, adjust the range accordingly
+            return Math.floor(Math.random() * 5) + 1;
+        }
+
+        function createMemoryGame(numPairs) {
+            const gameContainer = document.getElementById('game-container');
+            gameContainer.innerHTML = '';
+            selectedCards = [];
+
+            const allCardData = [];
+
+            // Collect all data to ensure pairs are distributed randomly
+            for (let i = 1; i <= numPairs; i++) {
+                const imageNumber = getRandomCardNumber();
+
+                const cardData = {
+                    imageNumber,
+                    matchingRow: null,
+                };
+
+                allCardData.push(cardData);
+            }
+
+            // Duplicate card data to create pairs
+            const allCardDataWithPairs = [...allCardData, ...allCardData];
+
+            // Shuffle the card data array
+            const shuffledCardData = shuffleArray(allCardDataWithPairs);
+
+            // Create cards
+            for (let i = 0; i < shuffledCardData.length; i++) {
+                const card = document.createElement('div');
+                card.classList.add('card');
+
+                const cardInner = document.createElement('div');
+                cardInner.classList.add('card-inner');
+
+                const { imageNumber } = shuffledCardData[i];
+
+                // Fetch data from "adinkra.csv" based on the image number
+                fetch('adinkra.csv')
+                    .then(response => response.text())
+                    .then(csvData => {
+                        const parsedData = parseCSV(csvData);
+                        const matchingRow = parsedData.find(row => row.No === `${imageNumber}`);
+
+                        shuffledCardData[i].matchingRow = matchingRow;
+
+                        // Display the name at the back of one card and the meaning on the other
+                        if (i % 2 === 0) {
+                            // Even index, display name on the front
+                            cardInner.innerHTML = `
+                                <div class="card-back">
+                                    <img src="images/${imageNumber}.svg" alt="Adinkra Image ${imageNumber}">
+                                    <h4>${matchingRow ? matchingRow.Name : 'No Name'}</h4>
+                                </div>
+                                <div class="card-front">
+                                    <p>${matchingRow ? matchingRow.Meaning : 'No Meaning'}</p>
+                                </div>
+                            `;
+                        } else {
+                            // Odd index, display meaning on the front
+                            cardInner.innerHTML = `
+                                <div class="card-back">
+                                    <img src="images/${imageNumber}.svg" alt="Adinkra Image ${imageNumber}">
+                                    <p>${matchingRow ? matchingRow.Meaning : 'No Meaning'}</p>
+                                </div>
+                                <div class="card-front">
+                                    <h4>${matchingRow ? matchingRow.Name : 'No Name'}</h4>
+                                </div>
+                            `;
+                        }
+                    });
+
+                card.appendChild(cardInner);
+                gameContainer.appendChild(card);
+
+                // Add a click event listener to each card for flipping
+                card.addEventListener('click', function () {
+                    flipCard(card);
+                });
+
+                // Save selected cards to ensure pairs
+                selectedCards.push(card);
+            }
+        }
+
+        function flipCard(card) {
+            if (!card.classList.contains('flipped') && !card.classList.contains('matched')) {
+                card.querySelector('.card-inner').style.transform = 'rotateY(180deg)';
+                card.classList.add('flipped');
+
+                // Check if two cards are flipped
+                const flippedCards = selectedCards.filter(c => c.classList.contains('flipped') && !c.classList.contains('matched'));
+
+                if (flippedCards.length === 2) {
+                    const [card1, card2] = flippedCards;
+
+                    // Compare the content of the two flipped cards
+                    const content1 = card1.querySelector('.card-front').innerHTML;
+                    const content2 = card2.querySelector('.card-front').innerHTML;
+
+                    if (content1 === content2) {
+                        // Cards match
+                        card1.classList.add('matched');
+                        card2.classList.add('matched');
+                        card1.style.backgroundColor = 'orange';
+                        card2.style.backgroundColor = 'orange';
+                    } else {
+                        // Cards do not match, flip them back
+                        setTimeout(() => {
+                            card1.querySelector('.card-inner').style.transform = 'rotateY(0deg)';
+                            card2.querySelector('.card-inner').style.transform = 'rotateY(0deg)';
+                            card1.classList.remove('flipped');
+                            card2.classList.remove('flipped');
+                        }, 1000);
+                    }
+                }
+            }
+        }
+
+        function parseCSV(csvData) {
+            const lines = csvData.split(/\r?\n/);
+            const result = [];
+            const headers = lines[0].split(',');
+
+            for (let i = 1; i < lines.length; i++) {
+                const obj = {};
+                const currentline = lines[i].split(',');
+
+                for (let j = 0; j < headers.length; j++) {
+                    obj[headers[j]] = currentline[j];
+                }
+
+                result.push(obj);
+            }
+
+            return result;
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+    </script>
+
+</body>
+
+</html>
