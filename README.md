@@ -1,2 +1,2 @@
-# priceless-swanson-c8mm9l
-Created with CodeSandbox
+# Adinkra Game
+A game to learn the Adinkra symbols
