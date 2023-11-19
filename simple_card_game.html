@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memory Card Game</title>
+  <style>
+    body {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-around;
+      align-items: center;
+      height: 100vh;
+      background-color: #f0f0f0;
+    }
+
+    .card {
+      perspective: 1000px;
+      width: 120px;
+      height: 160px;
+      margin: 10px;
+      transform-style: preserve-3d;
+      cursor: pointer;
+      transition: transform 0.5s;
+      position: relative;
+      border: 2px solid black;
+      border-radius: 10px; /* Rounded corners */
+    }
+
+    .card.fixed {
+      pointer-events: none;
+      border: 2px solid #2ecc71;
+    }
+
+    .card .card-inner {
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      transition: transform 0.5s;
+      transform: rotateY(0deg);
+    }
+
+    .card.flipped .card-inner {
+      transform: rotateY(180deg);
+    }
+
+    .card-front,
+    .card-back {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      backface-visibility: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 10px;
+      box-sizing: border-box;
+      border-radius: 8px; /* Rounded corners for the back of the cards */
+    }
+
+    .card-front {
+      background-color: #808080; /* Gray background */
+      color: #fff;
+    }
+
+    .card-back {
+      background-color: white;
+      color: black;
+      transform: rotateY(180deg);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden; /* Hide overflow for scaling effect */
+      border-radius: 8px; /* Rounded corners for the back of the cards */
+    }
+
+    .card-content {
+      font-size: 14px;
+      color: inherit;
+    }
+
+    .card-img {
+      width: 65%; /* Set the width of the image to 65% of the card */
+      max-height: 65%; /* Set the maximum height of the image to 65% of the card */
+      object-fit: contain; /* Ensure the aspect ratio is maintained while scaling the image */
+    }
+  </style>
+</head>
+<body>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var totalPairs = 2; // Initial difficulty level
+    var matchedPairs = 0;
+    var roundsCompleted = 0;
+    var maxDifficulty = 25; // Maximum difficulty level
+
+    function startGame() {
+      var existingCards = document.querySelectorAll('.card');
+      existingCards.forEach(function (card) {
+        card.remove();
+      });
+
+      fetchData("adinkra.csv", createMemoryCards);
+    }
+
+    function checkGameCompletion() {
+      var allCards = document.querySelectorAll('.card');
+      var allFixed = true;
+      allCards.forEach(function (card) {
+        if (!card.classList.contains('fixed')) {
+          allFixed = false;
+        }
+      });
+
+      if (allFixed) {
+        if (roundsCompleted < maxDifficulty) {
+          roundsCompleted++;
+          totalPairs++;
+          alert("Congratulations! You've completed Round " + roundsCompleted + ". Adding a new pair of cards for the next round.");
+          startGame();
+        } else {
+          alert("Congratulations! You've completed all rounds.");
+        }
+      }
+    }
+
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    function fetchData(url, callback) {
+      var xhr = new XMLHttpRequest();
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+          callback(xhr.responseText);
+        }
+      };
+      xhr.open("GET", url, true);
+      xhr.send();
+    }
+
+    function createMemoryCards(data) {
+      var cardsContainer = document.body;
+
+      var rows = data.split("\n");
+      var cardsData = [];
+      for (var i = 1; i < rows.length; i++) {
+        var columns = rows[i].split(",");
+        if (columns.length === 3) {
+          var cardData = {
+            number: columns[0],
+            name: columns[1],
+            meaning: columns[2],
+          };
+          cardsData.push(cardData);
+        }
+      }
+
+      shuffleArray(cardsData); // Randomize how the CSV elements are loaded
+
+      var availablePairs = Math.min(totalPairs, Math.floor(cardsData.length / 2));
+
+      var cardPairs = [];
+      for (var i = 0; i < availablePairs; i++) {
+        var nameCard = { name: cardsData[i].name, meaning: cardsData[i].meaning };
+        var meaningCard = { name: cardsData[i].name, meaning: cardsData[i].meaning };
+
+        cardPairs.push({ nameCard, meaningCard });
+      }
+
+      // Duplicate the pairs to create matching cards
+      cardPairs = cardPairs.flatMap(pair => [pair, pair]);
+
+      shuffleArray(cardPairs); // Randomize the pairs
+
+      cardPairs.forEach(function (card, index) {
+        var cardElement = document.createElement("div");
+        cardElement.className = "card";
+        cardElement.dataset.id = index;
+        cardElement.innerHTML =
+          '<div class="card-inner">' +
+          '<div class="card-front">' +
+          '<p class="card-content">' + (index % 2 === 0 ? card.nameCard.name : card.meaningCard.meaning) + '</p>' +
+          '</div>' +
+          '<div class="card-back">' +
+          '<img class="card-img" src="images/' + card.nameCard.name + '.svg" alt="' + card.nameCard.name + '">' +
+          '<p class="card-content">' + card.nameCard.name + '</p>' +
+          '</div>' +
+          '</div>';
+        cardsContainer.appendChild(cardElement);
+
+        setTimeout(function () {
+          // Flip the cards for 2 seconds
+          cardElement.classList.add("flipped");
+          setTimeout(function () {
+            // Flip the cards back with a nice 3D effect
+            cardElement.classList.remove("flipped");
+            checkGameCompletion();
+          }, 2000);
+        }, 500 * index);
+
+        cardElement.addEventListener("click", function () {
+          if (!cardElement.classList.contains("flipped") && !cardElement.classList.contains("fixed")) {
+            cardElement.classList.add("flipped");
+
+            var flippedCards = document.querySelectorAll(".card.flipped:not(.fixed)");
+            if (flippedCards.length === 2) {
+              var card1 = flippedCards[0];
+              var card2 = flippedCards[1];
+
+              var img1 = card1.querySelector(".card-back img").getAttribute("alt");
+              var img2 = card2.querySelector(".card-back img").getAttribute("alt");
+              if (img1 === img2) {
+                card1.classList.add("fixed");
+                card2.classList.add("fixed");
+                matchedPairs++;
+                checkGameCompletion();
+              } else {
+                setTimeout(function () {
+                  card1.classList.remove("flipped");
+                  card2.classList.remove("flipped");
+                }, 1000);
+              }
+            }
+          }
+        });
+      });
+    }
+
+    startGame();
+  });
+</script>
+
+</body>
+</html>
